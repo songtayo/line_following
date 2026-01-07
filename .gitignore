@@ -1,0 +1,10 @@
+# ROS2 Python build artifacts
+__pycache__/
+*.pyc
+
+# Local IDE settings
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
