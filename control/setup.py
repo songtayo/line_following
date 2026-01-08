@@ -28,6 +28,7 @@ setup(
     entry_points={
         'console_scripts': [
         'cam_viewer=control.cam_viewer:main',
+        'control_node_exe = control.lane_follower_exe:main',
         ],
     },
 )

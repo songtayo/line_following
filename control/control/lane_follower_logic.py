@@ -13,11 +13,11 @@ class LaneFollowerNode(Node):
         
         # 1. ROS 2 구독 및 발행 설정
         # 큐 사이즈를 1로 설정하여 최신 프레임 위주로 처리하도록 유도 (병목 방지)
-        self.subscription = self.create_subscription(
-            Image, '/image_raw', self.listener_callback, 1)
-        self.subscription = self.create_subscription(
+        self.subscription_1 = self.create_subscription(
+           Image, '/image_raw', self.listener_callback, 1)
+        self.subscription_2 = self.create_subscription(
             Int32, 'traffic_color', self.traffic_callback, 10)
-        self.subscription = self.create_subscription(
+        self.subscription_3 = self.create_subscription(
             Int32, 'obstacle_status', self.lidar_callback, 10)
         # Publisher
         self.publisher = self.create_publisher(Twist, '/cmd_vel', 10)
@@ -48,6 +48,30 @@ class LaneFollowerNode(Node):
 
         # 7. robot state
         self.robot_state = 0 # 0 is noraml, 1 is avoid obstacle
+
+        # 8. obstacle avoid parameter
+        # 2. 상태 변수
+        self.state = 'FORWARD'
+        self.timer_count = 0
+        
+        # 3. [튜닝 구역] 수정된 파라미터
+        # ---------------------------------------------------------
+        self.speed_fwd = 0.1      # 직진 속도 (m/s)
+        self.speed_turn = 0.5     # 회전 속도 (rad/s)
+        
+        # [수정 1] 회전 각도 부족 해결 -> 시간을 늘림 (기존 31 -> 45)
+        # (만약 너무 많이 돌면 40정도로 줄이세요)
+        self.TIME_TURN_90 = 45    
+        
+        # [수정 2] 옆으로 이동 거리 2배 증가 (기존 20 -> 40)
+        # 장애물 폭이 넓어도 안 부딪히게 함
+        self.TIME_MOVE_SIDE = 40  
+        
+        # [수정 3] 앞으로 지르는 거리 2배 이상 증가 (기존 40 -> 90)
+        # 멀리서 인식해도 장애물을 완전히 지나칠 때까지 직진하도록 아주 길게 잡음
+        self.TIME_PASS_LONG = 90  
+
+        self.get_logger().info('Control has started')
 
 
     def listener_callback(self, data):
@@ -117,9 +141,9 @@ class LaneFollowerNode(Node):
                 self.is_detected = False
 
             # 화면 중앙선 시각화
-            cv2.line(frame, (int(self.img_center), 0), (int(self.img_center), height), (0, 255, 0), 1)
-            cv2.imshow("Lane Detection Result", frame)
-            cv2.waitKey(1)
+            # cv2.line(frame, (int(self.img_center), 0), (int(self.img_center), height), (0, 255, 0), 1)
+            # cv2.imshow("Lane Detection Result", frame)
+            # cv2.waitKey(1)
 
         except Exception as e:
             self.get_logger().error(f'Image processing error: {e}')
@@ -131,6 +155,61 @@ class LaneFollowerNode(Node):
     def lidar_callback(self, msg):
         self.obstacle = msg.data
         # print(self.obstacle)
+
+    def avoid_obstacle(self):
+        twist = Twist()
+        self.get_logger().info(f"avoid~~~~~!!!!!!!")
+        # 로직은 기존과 동일 (timer_count가 증가하는 속도가 빨라졌으므로 상단 변수로 상쇄됨)
+        if self.state == 'FORWARD':
+            self.get_logger().warn("🚧 장애물 감지! 0.04s 주기로 회피 시작")
+            self.state = 'STEP1_TURN_L'
+            self.timer_count = 0
+        
+        elif self.state == 'STEP1_TURN_L':
+            twist.angular.z = self.speed_turn
+            self.timer_count += 1
+            if self.timer_count > self.TIME_TURN_90:
+                self.state = 'STEP2_MOVE_OUT'; self.timer_count = 0
+                
+        elif self.state == 'STEP2_MOVE_OUT':
+            twist.linear.x = self.speed_fwd
+            self.timer_count += 1
+            if self.timer_count > self.TIME_MOVE_SIDE:
+                self.state = 'STEP3_TURN_R'; self.timer_count = 0
+                
+        elif self.state == 'STEP3_TURN_R':
+            twist.angular.z = -self.speed_turn 
+            self.timer_count += 1
+            if self.timer_count > self.TIME_TURN_90:
+                self.state = 'STEP4_PASS_OBSTACLE'; self.timer_count = 0
+                
+        elif self.state == 'STEP4_PASS_OBSTACLE':
+            twist.linear.x = self.speed_fwd
+            self.timer_count += 1
+            if self.timer_count > self.TIME_PASS_LONG:
+                self.state = 'STEP5_TURN_R'; self.timer_count = 0
+                
+        elif self.state == 'STEP5_TURN_R':
+            twist.angular.z = -self.speed_turn
+            self.timer_count += 1
+            if self.timer_count > self.TIME_TURN_90:
+                self.state = 'STEP6_RETURN_IN'; self.timer_count = 0
+        
+        elif self.state == 'STEP6_RETURN_IN':
+            twist.linear.x = self.speed_fwd
+            self.timer_count += 1
+            if self.timer_count > self.TIME_MOVE_SIDE: 
+                self.state = 'STEP7_REALIGN'; self.timer_count = 0
+                
+        elif self.state == 'STEP7_REALIGN':
+            twist.angular.z = self.speed_turn
+            self.timer_count += 1
+            if self.timer_count > self.TIME_TURN_90:
+                self.get_logger().info("✅ 회피 완료!")
+                self.robot_state = 0
+                self.state = 'FORWARD'; self.timer_count = 0
+
+        return twist
 
     def control_timer_callback(self):
         """
@@ -170,43 +249,28 @@ class LaneFollowerNode(Node):
                     self.count = 0
                     twist.linear.x = 0.0
                     twist.angular.z = 0.0
-                    print('stop')
+                    # print('stop')
                 elif self.traffic_light == 1:
                     self.count += 1
                     if self.count < 100:
                         twist.linear.x = 0.0
                         twist.angular.z = 0.0
                     else:
-                        print("go")
+                        # print("go")
+                        pass
                         # self.count = 100
                 else:
                     pass
             else:
                 twist.linear.x = 0.0
                 twist.angular.z = 0.0
-                print('obstacle stop')
-                # self.robot_state = 1
+                # print('obstacle stop')
+                self.get_logger().info("state change")
+                self.robot_state = 1
         else:
-            pass # make avoid obstacle alogrithm
-            # twist.linear.x = 0.0
-            # twist.angular.z = -0.1
+            self.get_logger().info("avoid please gooooooo")
+            twist = self.avoid_obstacle()
         
-        # self.publisher.publish(twist)
+        self.publisher.publish(twist)
 
-def main(args=None):
-    rclpy.init(args=args)
-    node = LaneFollowerNode()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        # 종료 시 로봇 정지 명령
-        stop_twist = Twist()
-        node.publisher.publish(stop_twist)
-        node.destroy_node()
-        rclpy.shutdown()
-        cv2.destroyAllWindows()
 
-if __name__ == '__main__':
-    main()

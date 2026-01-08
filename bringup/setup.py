@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 import os           # <--- 이 줄이 반드시 있어야 합니다!
 from glob import glob
 
-package_name = 'obstacle'
+package_name = 'bringup'
 
 setup(
     name=package_name,
@@ -16,8 +16,8 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='vv',
-    maintainer_email='vv@todo.todo',
+    maintainer='dcu',
+    maintainer_email='songtayo48@email.com',
     description='TODO: Package description',
     license='TODO: License declaration',
     extras_require={
@@ -27,8 +27,6 @@ setup(
     },
     entry_points={
         'console_scripts': [
-        # 'scan_sub = obstacle.scan_sub:main',
-        'obstacle_node_exe = obstacle.obstacle_detection:main',
         ],
     },
 )

@@ -5,6 +5,7 @@ from sensor_msgs.msg import Image # 이미지 토픽을 받기 위해 필요
 from cv_bridge import CvBridge    # ROS 이미지를 OpenCV 이미지로 변환
 import cv2
 import numpy as np
+
 class TrafficSignalPublisher(Node):
     def __init__(self):
         super().__init__('traffic_signal_publisher')
@@ -20,6 +21,7 @@ class TrafficSignalPublisher(Node):
         # ROS-OpenCV 변환 브릿지 초기화
         self.bridge = CvBridge()
         self.get_logger().info('Traffic Signal Publisher Node with TurtleBot Camera has started.')
+
     def image_callback(self, msg):
         try:
             # 3. ROS Image 메시지를 OpenCV 이미지로 변환
@@ -43,7 +45,7 @@ class TrafficSignalPublisher(Node):
         mask_blue = cv2.inRange(hsv, lower_blue, upper_blue)
         red_pixels = cv2.countNonZero(mask_red)
         blue_pixels = cv2.countNonZero(mask_blue)
-        print(f"red: {red_pixels}, blue: {blue_pixels}")
+        # print(f"red: {red_pixels}, blue: {blue_pixels}")
         result_msg = Int32()
         # 조건 판단
         if red_pixels > 500:
@@ -63,22 +65,10 @@ class TrafficSignalPublisher(Node):
             return
         # 결과 발행
         self.publisher_.publish(result_msg)
-        self.get_logger().info(f'Published: {result_msg.data} ({pixel_info})')
+        # self.get_logger().info(f'Published: {result_msg.data} ({pixel_info})')
         # 화면에 정보 표시
         # cv2.putText(frame, status, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
         # cv2.putText(frame, pixel_info, (50, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
         # cv2.imshow("TurtleBot Camera", frame)
         # cv2.waitKey(1)
-def main(args=None):
-    rclpy.init(args=args)
-    node = TrafficSignalPublisher()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        cv2.destroyAllWindows()
-        node.destroy_node()
-        rclpy.shutdown()
-if __name__ == '__main__':
-    main()
+

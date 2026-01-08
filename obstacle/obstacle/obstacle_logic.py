@@ -37,7 +37,7 @@ class ObstacleDetectionNode(Node):
             min_dist = min(valid_ranges)
             if min_dist < self.detection_range:
                 status_msg.data = 1
-                self.get_logger().warn(f'장애물 감지 (1) | 거리: {min_dist:.2f}m')
+                # self.get_logger().warn(f'장애물 감지 (1) | 거리: {min_dist:.2f}m')
             else:
                 status_msg.data = 0
         else:
@@ -45,16 +45,4 @@ class ObstacleDetectionNode(Node):
 
         self.publisher_.publish(status_msg)
 
-def main(args=None):
-    rclpy.init(args=args)
-    node = ObstacleDetectionNode()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
 
-if __name__ == '__main__':
-    main()

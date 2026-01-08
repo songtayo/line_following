@@ -1,4 +1,6 @@
 from setuptools import find_packages, setup
+import os           # <--- 이 줄이 반드시 있어야 합니다!
+from glob import glob
 
 package_name = 'traffic'
 
@@ -10,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -24,7 +27,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-        'traffic_light=traffic.traffic_light:main',
+        # 'traffic_light=traffic.traffic_light:main',
+        'traffic_node_exe = traffic.traffic_node_exe:main',
         ],
     },
 )
