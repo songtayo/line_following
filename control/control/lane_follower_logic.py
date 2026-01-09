@@ -1,11 +1,12 @@
 import rclpy
+import cv2
+import numpy as np
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import Int32
 from geometry_msgs.msg import Twist
 from cv_bridge import CvBridge
-import cv2
-import numpy as np
+
 
 class LaneFollowerNode(Node):
     def __init__(self):
@@ -245,13 +246,6 @@ class LaneFollowerNode(Node):
                     self.robot_state = 2
                     twist.linear.x = 0.0
                     twist.angular.z = 0.0
-                # elif self.traffic_light == 1:
-                #     self.count += 1
-                #     if self.count < 100:
-                #         twist.linear.x = 0.0
-                #         twist.angular.z = 0.0
-                #     else:
-                #         self.robot_state = 0
                 else:
                     pass
             elif self.obstacle == 1:
@@ -264,7 +258,6 @@ class LaneFollowerNode(Node):
             if self.robot_state == 2:
                 if self.traffic_light == 0:
                     self.count = 0
-                    # self.get_logger().info("traffic in")
                     self.robot_state = 2
                     twist.linear.x = 0.0
                     twist.angular.z = 0.0
@@ -279,5 +272,4 @@ class LaneFollowerNode(Node):
                 twist = self.avoid_obstacle()
         
         self.publisher.publish(twist)
-
 
