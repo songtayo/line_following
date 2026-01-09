@@ -1,30 +1,30 @@
 import rclpy
 import time
-from geometry_msgs.msg import Twist  # Twist 임포트 확인
 from control.lane_follower_logic import LaneFollowerNode
 
 def main(args=None):
     rclpy.init(args=args)
     node = LaneFollowerNode()
+    
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        # 1. KeyboardInterrupt 발생 시 로그 출력 (선택 사항)
-        node.get_logger().info('Stopping the robot...')
+        pass 
     finally:
-        # 2. Twist 메시지 생성을 위한 명시적 선언
-        stop_twist = Twist()
-        stop_twist.linear.x = 0.0
-        stop_twist.angular.z = 0.0
+        # 1. 로봇 정지 함수 호출
+        node.stop_robot()
         
-        # 3. 짧게 반복하여 메시지 전송 (메시지 유실 방지)
+        # 2. [핵심] 메시지가 네트워크로 완전히 나갈 때까지 대기
+        # 이 과정이 없으면 터틀봇은 정지 신호를 받기 전에 연결이 끊깁니다.
         for _ in range(5):
-            node.publisher.publish(stop_twist)
-            # rclpy.spin_once 대신 잠시 대기
-            time.sleep(0.1) 
-        
+            rclpy.spin_once(node, timeout_sec=0.1)
+            
+        # 3. 안전하게 종료
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
+        
+        print("Robot control terminated safely.")
 
 if __name__ == '__main__':
     main()

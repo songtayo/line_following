@@ -36,9 +36,9 @@ class LaneFollowerNode(Node):
 
         # 4. 설정값 및 제어 파라미터
         self.min_lane_distance = 100 # 두 차선 사이의 최소 x 거리
-        self.p_gain_dual = 0.01     # 두 줄 보일 때 조향 민감도
+        self.p_gain_dual = 0.025    # 두 줄 보일 때 조향 민감도
         self.p_gain_single = 0.01   # 한 줄 보일 때 조향 민감도 (강하게)
-        self.linear_speed = 0.1      # 직진 기본 속도
+        self.linear_speed = 0.18      # 직진 기본 속도
 
         # 5. traffic light parameter
         self.count = 0
@@ -62,7 +62,7 @@ class LaneFollowerNode(Node):
         
         # [수정 1] 회전 각도 부족 해결 -> 시간을 늘림 (기존 31 -> 45)
         # (만약 너무 많이 돌면 40정도로 줄이세요)
-        self.TIME_TURN_90 = 45    
+        self.TIME_TURN_90 = 40    
         
         # [수정 2] 옆으로 이동 거리 2배 증가 (기존 20 -> 40)
         # 장애물 폭이 넓어도 안 부딪히게 함
@@ -70,7 +70,7 @@ class LaneFollowerNode(Node):
         
         # [수정 3] 앞으로 지르는 거리 2배 이상 증가 (기존 40 -> 90)
         # 멀리서 인식해도 장애물을 완전히 지나칠 때까지 직진하도록 아주 길게 잡음
-        self.TIME_PASS_LONG = 90  
+        self.TIME_PASS_LONG = 75  
 
         self.get_logger().info('Control has started')
 
@@ -272,4 +272,20 @@ class LaneFollowerNode(Node):
                 twist = self.avoid_obstacle()
         
         self.publisher.publish(twist)
+
+    def stop_robot(self):
+        # 1. 제어 타이머부터 즉시 정지 (매우 중요!)
+        if hasattr(self, 'timer') and self.timer:
+            self.timer.cancel()
+            self.get_logger().info('Timer cancelled.')
+
+        # 2. 정지 메시지 발행
+        stop_twist = Twist()
+        stop_twist.linear.x = 0.0
+        stop_twist.angular.z = 0.0
+        
+        # 터틀봇의 하드웨어가 인식할 수 있도록 최소 3번 이상 발행
+        for i in range(3):
+            self.publisher.publish(stop_twist)
+            self.get_logger().info(f'Sent stop command {i+1}...')
 
