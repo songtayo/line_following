@@ -49,13 +49,13 @@ class LaneFollowerNode(Node):
         # 7. robot state
         self.robot_state = 0 # 0 is noraml, 1 is avoid obstacle
 
+        # ---------------------------------------------------------
         # 8. obstacle avoid parameter
         # 2. 상태 변수
         self.state = 'FORWARD'
         self.timer_count = 0
         
         # 3. [튜닝 구역] 수정된 파라미터
-        # ---------------------------------------------------------
         self.speed_fwd = 0.1      # 직진 속도 (m/s)
         self.speed_turn = 0.5     # 회전 속도 (rad/s)
         
@@ -150,11 +150,9 @@ class LaneFollowerNode(Node):
 
     def traffic_callback(self, msg):
         self.traffic_light = msg.data
-        # print(self.traffic_light)
 
     def lidar_callback(self, msg):
         self.obstacle = msg.data
-        # print(self.obstacle)
 
     def avoid_obstacle(self):
         twist = Twist()
@@ -222,8 +220,6 @@ class LaneFollowerNode(Node):
             if not self.is_detected:
                 twist.linear.x = 0.0
                 twist.angular.z = 0.0
-                print("no line")
-
             else:
                 if self.lane_center is not None:
                     # [상황 1] 두 줄 인식: 두 줄의 중앙을 따라 주행
@@ -249,26 +245,20 @@ class LaneFollowerNode(Node):
                     self.count = 0
                     twist.linear.x = 0.0
                     twist.angular.z = 0.0
-                    # print('stop')
                 elif self.traffic_light == 1:
                     self.count += 1
                     if self.count < 100:
                         twist.linear.x = 0.0
                         twist.angular.z = 0.0
                     else:
-                        # print("go")
                         pass
-                        # self.count = 100
                 else:
                     pass
             else:
                 twist.linear.x = 0.0
                 twist.angular.z = 0.0
-                # print('obstacle stop')
-                self.get_logger().info("state change")
                 self.robot_state = 1
         else:
-            self.get_logger().info("avoid please gooooooo")
             twist = self.avoid_obstacle()
         
         self.publisher.publish(twist)
