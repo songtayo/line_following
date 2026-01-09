@@ -156,7 +156,7 @@ class LaneFollowerNode(Node):
 
     def avoid_obstacle(self):
         twist = Twist()
-        self.get_logger().info(f"avoid~~~~~!!!!!!!")
+        # self.get_logger().info(f"avoid~~~~~!!!!!!!")
         # 로직은 기존과 동일 (timer_count가 증가하는 속도가 빨라졌으므로 상단 변수로 상쇄됨)
         if self.state == 'FORWARD':
             self.get_logger().warn("🚧 장애물 감지! 0.04s 주기로 회피 시작")
@@ -242,24 +242,41 @@ class LaneFollowerNode(Node):
 
             if self.obstacle == 0:
                 if self.traffic_light == 0:
+                    self.robot_state = 2
+                    twist.linear.x = 0.0
+                    twist.angular.z = 0.0
+                # elif self.traffic_light == 1:
+                #     self.count += 1
+                #     if self.count < 100:
+                #         twist.linear.x = 0.0
+                #         twist.angular.z = 0.0
+                #     else:
+                #         self.robot_state = 0
+                else:
+                    pass
+            elif self.obstacle == 1:
+                twist.linear.x = 0.0
+                twist.angular.z = 0.0
+                self.robot_state = 1
+            else:
+                pass
+        else:
+            if self.robot_state == 2:
+                if self.traffic_light == 0:
                     self.count = 0
+                    # self.get_logger().info("traffic in")
+                    self.robot_state = 2
                     twist.linear.x = 0.0
                     twist.angular.z = 0.0
                 elif self.traffic_light == 1:
                     self.count += 1
-                    if self.count < 100:
+                    if self.count < 140:
                         twist.linear.x = 0.0
                         twist.angular.z = 0.0
                     else:
-                        pass
-                else:
-                    pass
+                        self.robot_state = 0
             else:
-                twist.linear.x = 0.0
-                twist.angular.z = 0.0
-                self.robot_state = 1
-        else:
-            twist = self.avoid_obstacle()
+                twist = self.avoid_obstacle()
         
         self.publisher.publish(twist)
 

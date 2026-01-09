@@ -11,10 +11,13 @@ def main(args=None):
     finally:
         # 종료 시 로봇 정지 명령
         stop_twist = Twist()
-        node.publisher.publish(stop_twist)
+        for _ in range(5):
+            node.publisher.publish(stop_twist)
+            time.sleep(0.01)
         node.destroy_node()
         rclpy.shutdown()
-        cv2.destroyAllWindows()
+        # cv2.destroyAllWindows()
+
 
 if __name__ == '__main__':
     main()

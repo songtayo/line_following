@@ -46,14 +46,15 @@ class TrafficSignalPublisher(Node):
         red_pixels = cv2.countNonZero(mask_red)
         blue_pixels = cv2.countNonZero(mask_blue)
         # print(f"red: {red_pixels}, blue: {blue_pixels}")
+        # self.get_logger().info(f"red: {red_pixels}, blue: {blue_pixels}")
         result_msg = Int32()
         # 조건 판단
-        if red_pixels > 500:
+        if red_pixels > 120:
             result_msg.data = 0
             status = "STOP (RED)"
             color = (0, 0, 255)
             pixel_info = f"Red pixels: {red_pixels}"
-        elif blue_pixels > 1500:
+        elif blue_pixels > 1000:
             result_msg.data = 1
             status = "GO (BLUE)"
             color = (255, 0, 0)
