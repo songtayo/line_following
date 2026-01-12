@@ -29,7 +29,7 @@ class ObstacleDetectionNode(Node):
 
     def scan_callback(self, msg):
         # (나머지 로직은 이전과 동일)
-        front_ranges = msg.ranges[0:15] + msg.ranges[345:360]
+        front_ranges = msg.ranges[340:360] + msg.ranges[0:60]
         valid_ranges = [r for r in front_ranges if msg.range_min < r < msg.range_max]
         
         status_msg = Int32()

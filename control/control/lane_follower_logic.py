@@ -22,6 +22,7 @@ class LaneFollowerNode(Node):
             Int32, 'obstacle_status', self.lidar_callback, 10)
         # Publisher
         self.publisher = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.publisher_buzz = self.create_publisher(Int32, '/buzz_state', 10)
         
         # 2. 제어 타이머 설정 (0.05초 = 20Hz 주기)
         self.timer = self.create_timer(0.04, self.control_timer_callback)
@@ -36,8 +37,8 @@ class LaneFollowerNode(Node):
 
         # 4. 설정값 및 제어 파라미터
         self.min_lane_distance = 100 # 두 차선 사이의 최소 x 거리
-        self.p_gain_dual = 0.025    # 두 줄 보일 때 조향 민감도
-        self.p_gain_single = 0.01   # 한 줄 보일 때 조향 민감도 (강하게)
+        self.p_gain_dual = 0.03    # 두 줄 보일 때 조향 민감도
+        self.p_gain_single = 0.02   # 한 줄 보일 때 조향 민감도 (강하게)
         self.linear_speed = 0.18      # 직진 기본 속도
 
         # 5. traffic light parameter
@@ -70,7 +71,15 @@ class LaneFollowerNode(Node):
         
         # [수정 3] 앞으로 지르는 거리 2배 이상 증가 (기존 40 -> 90)
         # 멀리서 인식해도 장애물을 완전히 지나칠 때까지 직진하도록 아주 길게 잡음
-        self.TIME_PASS_LONG = 75  
+        self.TIME_PASS_LONG = 75 
+
+        self.tarffic_sign = False 
+        self.obstacle_mode = 0
+
+        twist = Twist()
+        twist.linear.x = 0.0
+        twist.angular.z = 0.0
+        self.publisher.publish(twist)
 
         self.get_logger().info('Control has started')
 
@@ -81,6 +90,7 @@ class LaneFollowerNode(Node):
         영상을 받아 선을 검출하고 조향에 필요한 좌표만 계산하여 변수에 저장합니다.
         """
         try:
+            # ROS 이미지 메시지를 OpenCV 이미지로 변환
             frame = self.bridge.imgmsg_to_cv2(data, desired_encoding='bgr8')
             height, width = frame.shape[:2]
             self.img_center = width / 2.0
@@ -96,8 +106,8 @@ class LaneFollowerNode(Node):
             mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
             # 3. ROI 설정 (하단 50% 영역)
-            roi_vertices = np.array([[(0, height), (width, height), 
-                                      (width, int(height*0.5)), (0, int(height*0.5))]], np.int32)
+            roi_vertices = np.array([[(0, int(height*0.8)), (width, int(height*0.8)), 
+                          (width, int(height*0.3)), (0, int(height*0.3))]], np.int32)
             roi_mask = np.zeros_like(mask)
             cv2.fillPoly(roi_mask, roi_vertices, 255)
             cropped_mask = cv2.bitwise_and(mask, roi_mask)
@@ -120,31 +130,50 @@ class LaneFollowerNode(Node):
                 if len(line_list) > 0:
                     selected.append(line_list[0])
                     for i in range(1, len(line_list)):
+                        # 첫 번째 선과 일정 거리 이상 떨어진 선만 두 번째 차선으로 인정
                         if abs(selected[0]['cx'] - line_list[i]['cx']) > self.min_lane_distance:
                             selected.append(line_list[i])
                             break
 
-                # 인식 결과 업데이트
+                # --- [시각화 추가: 검출된 차선 그리기] ---
+                for s_line in selected:
+                    x1, y1, x2, y2 = s_line['pts']
+                    # 선택된 차선을 빨간색(BGR: 0, 0, 255) 두께 3으로 표시
+                    cv2.line(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 3)
+                # ------------------------------------------
+
+                # 인식 결과 업데이트 및 중앙점 시각화
                 if len(selected) == 2:
                     self.lane_center = (selected[0]['cx'] + selected[1]['cx']) / 2.0
                     self.single_lane_info = None
                     self.is_detected = True
-                    # 시각화 (중앙점)
+                    # 두 선의 중앙점을 노란색 원으로 표시
                     cv2.circle(frame, (int(self.lane_center), int(height*0.75)), 10, (0, 255, 255), -1)
+                
                 elif len(selected) == 1:
                     self.lane_center = None
                     side = 'left' if selected[0]['cx'] < self.img_center else 'right'
                     self.single_lane_info = {'cx': selected[0]['cx'], 'side': side}
                     self.is_detected = True
+                    # 한 선만 보일 때 해당 선의 중앙점 표시 (하늘색)
+                    cv2.circle(frame, (int(selected[0]['cx']), int(height*0.75)), 10, (255, 255, 0), -1)
                 else:
                     self.is_detected = False
             else:
                 self.is_detected = False
 
-            # 화면 중앙선 시각화
-            # cv2.line(frame, (int(self.img_center), 0), (int(self.img_center), height), (0, 255, 0), 1)
-            # cv2.imshow("Lane Detection Result", frame)
-            # cv2.waitKey(1)
+            # 화면 중앙선 시각화 (기준선: 초록색)
+            cv2.line(frame, (int(self.img_center), 0), (int(self.img_center), height), (0, 255, 0), 1)
+            
+            # ROI 영역 가이드라인 (옵션: 영역 확인용 보라색 점선)
+            cv2.line(frame, (0, int(height*0.5)), (width, int(height*0.5)), (255, 0, 255), 1)
+
+            # 최종 화면 표시
+            cv2.imshow("Lane Detection Result", frame)
+            cv2.waitKey(1)
+
+        except Exception as e:
+            self.get_logger().error(f"Error in listener_callback: {e}")
 
         except Exception as e:
             self.get_logger().error(f'Image processing error: {e}')
@@ -157,10 +186,13 @@ class LaneFollowerNode(Node):
 
     def avoid_obstacle(self):
         twist = Twist()
+        data = Int32()
         # self.get_logger().info(f"avoid~~~~~!!!!!!!")
         # 로직은 기존과 동일 (timer_count가 증가하는 속도가 빨라졌으므로 상단 변수로 상쇄됨)
         if self.state == 'FORWARD':
             self.get_logger().warn("🚧 장애물 감지! 0.04s 주기로 회피 시작")
+            data.data = 1
+            self.publisher_buzz.publish(data)
             self.state = 'STEP1_TURN_L'
             self.timer_count = 0
         
@@ -206,6 +238,8 @@ class LaneFollowerNode(Node):
             if self.timer_count > self.TIME_TURN_90:
                 self.get_logger().info("✅ 회피 완료!")
                 self.robot_state = 0
+                data.data = 0
+                self.publisher_buzz.publish(data)
                 self.state = 'FORWARD'; self.timer_count = 0
 
         return twist
@@ -216,6 +250,10 @@ class LaneFollowerNode(Node):
         타이머 주기에 따라 독립적으로 실행되며, 저장된 최신 좌표 정보를 바탕으로 속도 명령을 발행합니다.
         """
         twist = Twist()
+        data = Int32()
+
+        # 변수 값을 직접 넣어서 출력
+        self.get_logger().info(f"Current Robot State: {self.robot_state}")
 
         if self.robot_state == 0:
             if not self.is_detected:
@@ -249,9 +287,12 @@ class LaneFollowerNode(Node):
                 else:
                     pass
             elif self.obstacle == 1:
-                twist.linear.x = 0.0
-                twist.angular.z = 0.0
-                self.robot_state = 1
+                if self.tarffic_sign:
+                    pass
+                else:
+                    twist.linear.x = 0.0
+                    twist.angular.z = 0.0
+                    self.robot_state = 1
             else:
                 pass
         else:
@@ -268,8 +309,12 @@ class LaneFollowerNode(Node):
                         twist.angular.z = 0.0
                     else:
                         self.robot_state = 0
+                        self.tarffic_sign = True
             else:
-                twist = self.avoid_obstacle()
+                if self.tarffic_sign:
+                    pass
+                else:
+                    twist = self.avoid_obstacle()
         
         self.publisher.publish(twist)
 
